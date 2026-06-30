@@ -1,1 +1,115 @@
 
+import java.io.*;
+import java.util.*;
+public class LibraryController {
+    
+    // 1. List(ArrayList): 도서들이 가변적으로 계속 추가/삭제되므로 무한 확장되는 배열 자료구조를 썼습니다.
+    private List<Book> bookList = new ArrayList<>();
+    
+    // 2. Map(HashMap): 회원 ID(Key)를 주면 회원 객체(Value)를 초고속으로 바로 매칭해 꺼내오는 사전형 자료구조입니다.
+    private Map<String, Member> memberMap = new HashMap<>(); 
+    
+    // 데이터를 영구 보관할 하드디스크 파일 이름 설정
+    private final String FILE_NAME = "library_data.dat";
+
+    // [도서 등록 기능] View가 전달해 준 책 객체를 무한 상자(List) 맨 뒤에 집어넣습니다.
+    public void registerBook(Book book) {
+        bookList.add(book);
+    }
+
+    // [회원 등록 기능] 프로그램 가동 시 테스트용 회원을 사물함(Map)에 집어넣습니다. (Key는 ID, Value는 회원객체)
+    public void registerMember(Member member) {
+        memberMap.put(member.getMemberId(), member);
+    }
+
+    // 현재 Map 사물함에 회원이 몇 명 들어있는지 확인하는 용도 (Run에서 최초 1회 회원 심어줄 때 판단 근거)
+    public int getMemberMapSize() {
+        return memberMap.size();
+    }
+
+    // View가 도서 현황 목록을 화면에 표 형태로 출력할 수 있도록 전체 리스트를 그대로 전달해 줍니다.
+    public List<Book> getBookList() {
+        return bookList;
+    }
+
+    // [핵심 기능 1: 도서 대출 처리 로직]
+    public boolean processBorrow(String memberId, String bookId) {
+        // ① 사용자가 입력한 ID 번호표를 가지고 Map 사물함에서 회원 정보를 쏙 꺼내옵니다.
+        Member member = memberMap.get(memberId);
+        
+        // ② 등록되지 않은 가짜 ID이거나, 이미 그 사람이 책을 3권 이상 빌렸다면 대출 거부(false) 시킵니다.
+        if (member == null || member.getBorrowedCount() >= 3) {
+            return false;
+        }
+
+        // ③ 회원이 무사히 통과되었다면, 이제 책 보관함(List)을 처음부터 끝까지 돌면서 입력한 책을 찾습니다.
+        for (Book book : bookList) {
+            // 내가 찾는 책 번호가 맞고 && 그 책이 아직 아무한테도 대출되지 않은(!isBorrowed) 상태라면 대출 시작!
+            if (book.getBookId().equals(bookId) && !book.isBorrowed()) {
+                book.borrowBook(memberId, null); // 1. 해당 책의 상태를 대출중으로 바꾸고 대출자 ID를 씁니다.
+                member.increaseBorrowedCount();  // 2. 해당 회원의 대출 장부 권수를 1권 증가시킵니다.
+                return true; // 대출 프로세스 대성공 완수!
+            }
+        }
+        return false; // 리스트를 다 돌았는데 책 번호가 없거나, 이미 다른 사람이 빌려간 책이라면 실패 처리
+    }
+
+    // [핵심 기능 2: 도서 반납 처리 로직]
+    public boolean processReturn(String bookId) {
+        // 책 보관함(List)을 맨 앞부터 돌면서 사용자가 반납하겠다고 한 책 번호를 찾습니다.
+        for (Book book : bookList) {
+            // 사용자가 입력한 책 번호가 맞고 && 그 책이 현재 대출 중(isBorrowed)인 책이 맞다면 반납 시작!
+            if (book.getBookId().equals(bookId) && book.isBorrowed()) {
+                // 이 책을 빌려갔던 대출자 ID(borrowerId)를 알아내서, Map 사물함에서 그 회원을 정밀 타격해 꺼내옵니다.
+                Member member = memberMap.get(book.getBorrowerId());
+                
+                book.returnBook(); // 1. 책을 다시 대출 가능한 상태로 리셋합니다.
+                
+                if (member != null) {
+                    member.decreaseBorrowedCount(); // 2. 그 회원의 대출 장부 권수를 1권 차감해 줍니다.
+                }
+                return true; // 반납 프로세스 대성공 완수!
+            }
+        }
+        return false; // 대출된 적이 없거나 도서관 책이 아닌 엉뚱한 번호를 치면 실패 처리
+    }
+
+    // [도서 삭제 기능]
+    public boolean deleteBook(String bookId) {
+        for (int i = 0; i < bookList.size(); i++) {
+            // 리스트에서 해당 도서 번호를 찾았다면
+            if (bookList.get(i).getBookId().equals(bookId)) {
+                // 방어 코드: 누군가 빌려간 책인데 도서관 목록에서 지워버리면 안 되므로 대출 중이면 삭제 불가(false) 처리
+                if (bookList.get(i).isBorrowed()) return false; 
+                
+                bookList.remove(i); // 대출 중이 아니라면 리스트에서 깨끗하게 지워버립니다(.remove)
+                return true; // 삭제 성공
+            }
+        }
+        return false; // 책 번호 자체가 없으면 실패
+    }
+
+    // [파일 영구 저장] 프로그램 종료 버튼을 눌렀을 때 작동하며, 메모리의 도서 리스트와 회원 맵을 통째로 파일로 구워버립니다.
+    public void saveToFile() {
+        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(FILE_NAME))) {
+            oos.writeObject(bookList);  // 도서 전체 담긴 가변 배열 저장
+            oos.writeObject(memberMap); // 회원 정보 담긴 사물함 지도 저장
+        } catch (IOException e) {
+            System.out.println("파일 저장 실패: " + e.getMessage());
+        }
+    }
+
+    // [파일 데이터 로드] 프로그램이 켜지자마자 작동하며, 파일이 존재하면 과거 데이터를 복원해 줍니다.
+    @SuppressWarnings("unchecked")
+    public void loadFromFile() {
+        File file = new File(FILE_NAME);
+        if (!file.exists()) return; // 만약 처음 실행해서 저장된 파일이 없다면 그냥 아무 일 없이 넘어갑니다.
+
+        try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(FILE_NAME))) {
+            bookList = (List<Book>) ois.readObject();  // 저장된 도서 리스트 복구
+            memberMap = (Map<String, Member>) ois.readObject(); // 저장된 회원 맵 복구
+        } catch (Exception e) {
+            System.out.println("데이터 로드 실패: " + e.getMessage());
+        }
+    }
+}
