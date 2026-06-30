@@ -1,1 +1,43 @@
 
+import java.io.Serializable;
+import java.time.LocalDate;
+
+// 회원 정보 역시 파일에 통째로 저장하고 불러와야 하므로 Serializable을 구현합니다.
+public class Member implements Serializable {
+    
+    // [속성/데이터] 회원 한 명의 정보
+    private String memberId;           // 회원 고유 번호 ID (M001, M002)
+    private String name;               // 회원 이름 (홍길동, 김철수)
+    private int borrowedCount;         // 현재 이 회원이 대출해가서 가지고 있는 책의 권수 (최대 3권 한도 체크용)
+    private LocalDate penaltyEndDate;  // 연체 패널티 종료일 (기능 제외로 인해 항상 null 유지)
+
+    // [생성자] Run 클래스에서 초기 회원을 강제로 심어줄 때 데이터 세팅을 담당합니다.
+    public Member(String memberId, String name) {
+        this.memberId = memberId;
+        this.name = name;
+        this.borrowedCount = 0;        // 처음 가입된 회원은 빌린 책이 당연히 0권입니다.
+        this.penaltyEndDate = null;    // 패널티도 초기에는 없습니다.
+    }
+
+    // [대출 자격 검증 메서드] 회원이 현재 대출 가능한 상태인지 검사하는 로직입니다.
+    public boolean isEligibleToBorrow() {
+        if (borrowedCount >= 3) return false; // 이미 3권을 빌린 상태라면 더 이상 대출 불가(false) 처리합니다.
+        return true; // 3권 미만이면 대출 가능(true) 처리합니다.
+    }
+
+    // [대출 권수 증가 메서드] 대출이 최종 성공하면 회원의 장부에 빌린 책 개수를 1개 늘려줍니다.
+    public void increaseBorrowedCount() { 
+        this.borrowedCount++; 
+    }
+    
+    // [대출 권수 감소 메서드] 반납이 최종 성공하면 회원의 장부에서 빌린 책 개수를 1개 줄여줍니다.
+    public void decreaseBorrowedCount() { 
+        this.borrowedCount--; 
+    }
+
+    // [Getter 메서드들] Controller나 View가 데이터를 안전하게 읽어갈 수 있도록 제공하는 통로입니다.
+    public String getMemberId() { return memberId; }
+    public String getName() { return name; }
+    public int getBorrowedCount() { return borrowedCount; }
+    public LocalDate getPenaltyEndDate() { return penaltyEndDate; }
+}
