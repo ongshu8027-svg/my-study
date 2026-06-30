@@ -1,1 +1,44 @@
 
+import java.io.Serializable;
+import java.time.LocalDate;
+
+// Serializable 인터페이스를 구현해야 이 객체(책 정보)를 파일에 통째로 저장할 수 있습니다.
+public class Book implements Serializable {
+    
+    // [속성/데이터] 책 한 권이 가져야 할 필수 정보들
+    private String bookId;       // 도서 고유 번호 (예: B001)
+    private String title;        // 도서 제목 (예: 자바의 정석)
+    private boolean isBorrowed;  // 대출 여부 상태 (true이면 대출중, false이면 대출가능)
+    private String borrowerId;   // 이 책을 빌려간 회원의 고유 ID (아무도 안 빌렸으면 null)
+    private LocalDate dueDate;   // 반납 예정일 (이번 미니 프로젝트 기능 축소로 인해 항상 null 유지)
+
+    // [생성자] 처음 1번 메뉴로 책을 등록할 때, 번호와 제목을 받아 초기 세팅을 하는 역할
+    public Book(String bookId, String title) {
+        this.bookId = bookId;
+        this.title = title;
+        this.isBorrowed = false; // 처음 도서관에 등록된 책은 당연히 대출 가능한 상태(false)입니다.
+        this.borrowerId = null;  // 빌려간 사람이 아직 없으므로 비워둡니다(null).
+        this.dueDate = null;     // 반납 예정일도 아직은 없습니다.
+    }
+
+    // [대출 실행 메서드] 3번 메뉴에서 대출 성공 시 이 메서드를 실행해 책 내부 상태를 바꿉니다.
+    public void borrowBook(String memberId, LocalDate date) {
+        this.isBorrowed = true;      // 대출 상태를 '대출중(true)'으로 바꿉니다.
+        this.borrowerId = memberId;  // 빌려간 회원의 ID를 책 장부에 기록합니다.
+        this.dueDate = date;         // 반납 날짜를 기록합니다. (컨트롤러에서 null을 보내줄 예정)
+    }
+
+    // [반납 실행 메서드] 4번 메뉴에서 반납 성공 시 이 메서드를 실행해 책 정보를 리셋합니다.
+    public void returnBook() {
+        this.isBorrowed = false;     // 대출 상태를 다시 '대출가능(false)'으로 되돌립니다.
+        this.borrowerId = null;      // 빌려간 사람의 정보를 깨끗하게 지웁니다.
+        this.dueDate = null;         // 반납 예정일도 지웁니다.
+    }
+
+    // [Getter 메서드들] 데이터는 private으로 숨겨두었기 때문에, 외부에서 값을 읽어갈 수 있게 열어둔 통로입니다.
+    public String getBookId() { return bookId; }
+    public String getTitle() { return title; }
+    public boolean isBorrowed() { return isBorrowed; }
+    public String getBorrowerId() { return borrowerId; }
+    public LocalDate getDueDate() { return dueDate; }
+}
