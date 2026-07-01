@@ -1,3 +1,4 @@
+package domain; // 패키지 경로는 환경에 맞게 지정되므로 참고용입니다.
 
 import java.io.Serializable;
 import java.time.LocalDate;
@@ -5,40 +6,40 @@ import java.time.LocalDate;
 // Serializable 인터페이스를 구현해야 이 객체(책 정보)를 파일에 통째로 저장할 수 있습니다.
 public class Book implements Serializable {
     
-    // [속성/데이터] 책 한 권이 가져야 할 필수 정보들
-    private String bookId;       // 도서 고유 번호 (예: B001)
-    private String title;        // 도서 제목 (예: 자바의 정석)
-    private boolean isBorrowed;  // 대출 여부 상태 (true이면 대출중, false이면 대출가능)
-    private String borrowerId;   // 이 책을 빌려간 회원의 고유 ID (아무도 안 빌렸으면 null)
-    private LocalDate dueDate;   // 반납 예정일 (이번 미니 프로젝트 기능 축소로 인해 항상 null 유지)
+    // [속성/데이터] 책 한 권이 가져야 할 필수 정보들을 담는 필드(변수) 선언입니다.
+    private String bookId;       // 도서 고유 번호를 저장하는 문자열 변수입니다.
+    private String title;        // 도서 제목을 저장하는 문자열 변수입니다.
+    private boolean isBorrowed;  // 대출 중인지(true) 대출 가능한지(false) 나타내는 상태 변수입니다.
+    private String borrowerId;   // 대출한 회원의 고유 ID를 저장합니다. (아무도 안 빌렸으면 null 상태)
+    private LocalDate dueDate;   // 반납 예정일을 날짜 형태로 저장합니다. (이번 미니 프로젝트 기능 축소로 인해 항상 null 유지)
 
-    // [생성자] 처음 1번 메뉴로 책을 등록할 때, 번호와 제목을 받아 초기 세팅을 하는 역할
+    // [생성자] 처음 새 책을 등록할 때 사용하는 생성자 메서드입니다.
     public Book(String bookId, String title) {
-        this.bookId = bookId;
-        this.title = title;
-        this.isBorrowed = false; // 처음 도서관에 등록된 책은 당연히 대출 가능한 상태(false)입니다.
-        this.borrowerId = null;  // 빌려간 사람이 아직 없으므로 비워둡니다(null).
-        this.dueDate = null;     // 반납 예정일도 아직은 없습니다.
+        this.bookId = bookId;        // 외부에서 받아온 도서 번호를 객체 내 bookId 변수에 넣습니다.
+        this.title = title;          // 외부에서 받아온 도서 제목을 객체 내 title 변수에 넣습니다.
+        this.isBorrowed = false;     // 처음 새로 등록된 책이므로 기본 대출 상태는 'false(대출가능)'로 초기화합니다.
+        this.borrowerId = null;      // 아직 빌려 간 사람이 없으므로 대출자 ID는 'null'로 세팅합니다.
+        this.dueDate = null;         // 아직 빌려 간 상태가 아니므로 반납 예정일도 'null'로 둡니다.
     }
 
-    // [대출 실행 메서드] 3번 메뉴에서 대출 성공 시 이 메서드를 실행해 책 내부 상태를 바꿉니다.
+    // [대출 실행 메서드] 3번 메뉴에서 대출 성공 시 책의 내부 데이터를 갱신하는 함수입니다.
     public void borrowBook(String memberId, LocalDate date) {
-        this.isBorrowed = true;      // 대출 상태를 '대출중(true)'으로 바꿉니다.
-        this.borrowerId = memberId;  // 빌려간 회원의 ID를 책 장부에 기록합니다.
-        this.dueDate = date;         // 반납 날짜를 기록합니다. (컨트롤러에서 null을 보내줄 예정)
+        this.isBorrowed = true;      // 대출 상태를 'true(대출중)'로 변경합니다.
+        this.borrowerId = memberId;  // 책을 빌려 간 회원의 고유 ID를 기록해 둡니다.
+        this.dueDate = date;         // 대출한 시점 기준으로 반납 예정일을 주입합니다. (현재 코드 상에선 null이 들어옵니다.)
     }
 
-    // [반납 실행 메서드] 4번 메뉴에서 반납 성공 시 이 메서드를 실행해 책 정보를 리셋합니다.
+    // [반납 실행 메서드] 4번 메뉴에서 반납 성공 시 이 메서드를 실행해 책 정보를 깨끗하게 초기 상태로 리셋합니다.
     public void returnBook() {
-        this.isBorrowed = false;     // 대출 상태를 다시 '대출가능(false)'으로 되돌립니다.
-        this.borrowerId = null;      // 빌려간 사람의 정보를 깨끗하게 지웁니다.
-        this.dueDate = null;         // 반납 예정일도 지웁니다.
+        this.isBorrowed = false;     // 대출 상태를 다시 'false(대출가능)'로 복구합니다.
+        this.borrowerId = null;      // 보관 중이던 빌려 간 사람의 회원 ID 정보를 'null'로 지웁니다.
+        this.dueDate = null;         // 반납이 완료되었으므로 반납 예정일 날짜 데이터도 'null'로 삭제합니다.
     }
 
-    // [Getter 메서드들] 데이터는 private으로 숨겨두었기 때문에, 외부에서 값을 읽어갈 수 있게 열어둔 통로입니다.
-    public String getBookId() { return bookId; }
-    public String getTitle() { return title; }
-    public boolean isBorrowed() { return isBorrowed; }
-    public String getBorrowerId() { return borrowerId; }
-    public LocalDate getDueDate() { return dueDate; }
+    // [Getter 메서드] 캡슐화된 private 변수들을 외부(Controller나 View)에서 읽어갈 수 있도록 열어주는 읽기 전용 함수들입니다.
+    public String getBookId() { return bookId; }       // 이 책의 고유 번호를 반환합니다.
+    public String getTitle() { return title; }         // 이 책의 제목을 반환합니다.
+    public boolean isBorrowed() { return isBorrowed; } // 현재 대출 상태를 반환합니다. (true=대출중, false=대출가능)
+    public String getBorrowerId() { return borrowerId; } // 이 책을 빌려 간 사람의 회원 ID를 반환합니다.
+    public LocalDate getDueDate() { return dueDate; }   // 이 책의 반납 예정일을 반환합니다.
 }
