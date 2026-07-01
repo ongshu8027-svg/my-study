@@ -1,115 +1,132 @@
+package controller;
 
+import domain.Book;   // 데이터 가공 및 리스트 관리를 위해 참조합니다.
+import domain.Member; // 데이터 가공 및 회원 관리 맵 처리를 위해 참조합니다.
 import java.io.*;
 import java.util.*;
+
 public class LibraryController {
     
-    // 1. List(ArrayList): 도서들이 가변적으로 계속 추가/삭제되므로 무한 확장되는 배열 자료구조를 썼습니다.
-    private List<Book> bookList = new ArrayList<>();
+    // 프로그램 운영에 핵심이 되는 두 가지 인메모리 장부 데이터 구조입니다.
+    private List<Book> bookList = new ArrayList<>(); // 모든 도서 객체들을 순서대로 차곡차곡 모아 보관하는 동적 배열형 리스트입니다.
+    private Map<String, Member> memberMap = new HashMap<>(); // 회원 고유 ID를 'Key'값으로 지정해 회원 정보 객체('Value')를 단 1초 만에 찾아내는 빠른 검색용 맵입니다.
     
-    // 2. Map(HashMap): 회원 ID(Key)를 주면 회원 객체(Value)를 초고속으로 바로 매칭해 꺼내오는 사전형 자료구조입니다.
-    private Map<String, Member> memberMap = new HashMap<>(); 
-    
-    // 데이터를 영구 보관할 하드디스크 파일 이름 설정
+    // 하드디스크에 데이터들을 영구 보존할 백업 파일 저장 공간의 경로 및 명칭을 상수로 정해둡니다.
     private final String FILE_NAME = "library_data.dat";
 
-    // [도서 등록 기능] View가 전달해 준 책 객체를 무한 상자(List) 맨 뒤에 집어넣습니다.
+    // [도서 등록 기능] View 단에서 양식에 맞춰 조립해 온 새 도서 객체를 넘겨받아 도서 목록 리스트에 안착시킵니다.
     public void registerBook(Book book) {
-        bookList.add(book);
+        bookList.add(book); // 자바 컬렉션의 .add() API를 사용해 리스트 공간 맨 뒤에 새 책을 이어 붙입니다.
     }
 
-    // [회원 등록 기능] 프로그램 가동 시 테스트용 회원을 사물함(Map)에 집어넣습니다. (Key는 ID, Value는 회원객체)
-    public void registerMember(Member member) {
+    // [회원 등록 기능] View 단에서 만들어온 회원 가입 희망자 데이터를 검증한 뒤 장부에 등록합니다.
+    public boolean registerMember(Member member) {
+        // 이미 가입 신청한 회원 ID가 memberMap 장부 상에 Key값으로 존재하고 있다면 (중복ID 가입 방어)
+        if (memberMap.containsKey(member.getMemberId())) {
+            return false; // 더 진행하지 않고 즉시 등록 실패 코드('false')를 리턴하며 가입을 거부합니다.
+        }
+        // 중복 검사를 무사히 통과했다면 회원 관리용 맵 장부에 (회원ID, 회원객체) 한 쌍을 고이 집어넣습니다.
         memberMap.put(member.getMemberId(), member);
+        return true; // 회원 등록 작업이 무사히 성공했음을 알리는 신호 'true'를 리턴합니다.
     }
 
-    // 현재 Map 사물함에 회원이 몇 명 들어있는지 확인하는 용도 (Run에서 최초 1회 회원 심어줄 때 판단 근거)
-    public int getMemberMapSize() {
-        return memberMap.size();
+    // [회원 삭제/탈퇴 기능] 강사님의 핵심 피드백이 담긴 안전한 장부 영구 제명 연산 로직입니다.
+    public boolean deleteMember(String memberId) {
+        Member member = memberMap.get(memberId); // 입력받은 회원 ID로 우리 회원 사물함(Map)에서 해당 회원 인스턴스를 수색해 꺼내옵니다.
+        
+        if (member == null) return false; // 애초에 우리 도서관에 등록조치 된 적이 없는 엉뚱한 ID라면 탈퇴 처리가 불가능하므로 'false'를 리턴합니다.
+        if (member.getBorrowedCount() > 0) return false; // [먹튀 방지용 안전 장치] 해당 회원이 현재 빌려 가서 소지 중인 책 권수가 0보다 크다면, 반납 완료 전이므로 강제 탈퇴를 차단('false')합니다. 
+        
+        memberMap.remove(memberId); // 두 가지 검증 조건을 클리어했다면 비로소 자바 컬렉션의 .remove()를 사용해 회원 장부에서 완전히 지워버립니다.
+        return true; // 회원 정보가 깔끔하게 잘 지워졌음을 알리는 성공 코드 'true'를 리턴합니다.
     }
 
-    // View가 도서 현황 목록을 화면에 표 형태로 출력할 수 있도록 전체 리스트를 그대로 전달해 줍니다.
+    // [도서 목록 전달 함수] 뷰단(화면출력부)에서 현재 도서 보유 상황을 표로 그리고 싶을 때 리스트 원본의 참조 통로를 열어줍니다.
     public List<Book> getBookList() {
-        return bookList;
+        return bookList; // 도서들이 담긴 메모리 리스트 주소값을 그대로 돌려줍니다.
     }
 
-    // [핵심 기능 1: 도서 대출 처리 로직]
+    // [도서 대출 처리 핵심 로직] 3번 메뉴 선택 시 회원 상태와 책 상태를 상호 링크하는 가장 중요한 유기적 연결 비즈니스 영역입니다.
     public boolean processBorrow(String memberId, String bookId) {
-        // ① 사용자가 입력한 ID 번호표를 가지고 Map 사물함에서 회원 정보를 쏙 꺼내옵니다.
+        // 입력받은 대출 신청자 ID를 통해 회원 사물함(Map)에서 회원 장부를 조회해 옵니다.
         Member member = memberMap.get(memberId);
         
-        // ② 등록되지 않은 가짜 ID이거나, 이미 그 사람이 책을 3권 이상 빌렸다면 대출 거부(false) 시킵니다.
+        // 가입되지 않은 정체불명의 유령 ID이거나, 혹은 이미 대출 규정 최대 한도인 3권을 꽉 채워서 빌린 불량 회원이라면
         if (member == null || member.getBorrowedCount() >= 3) {
-            return false;
+            return false; // 규정 위반이므로 즉시 대출 불가 신호인 'false'를 던지며 로직을 강제 종료합니다.
         }
 
-        // ③ 회원이 무사히 통과되었다면, 이제 책 보관함(List)을 처음부터 끝까지 돌면서 입력한 책을 찾습니다.
+        // 회원이 정상 상태라면 도서관 리스트를 처음부터 끝까지 싹 돌면서 사용자가 빌려 가겠다고 적어낸 책 번호가 어디 있는지 뒤집니다.
         for (Book book : bookList) {
-            // 내가 찾는 책 번호가 맞고 && 그 책이 아직 아무한테도 대출되지 않은(!isBorrowed) 상태라면 대출 시작!
+            // 리스트에서 꺼낸 책의 고유 번호가 사용자가 친 번호와 일치하고 && 그 책이 마침 아무도 안 빌려 간 '대출가능(!book.isBorrowed())' 상태가 맞다면
             if (book.getBookId().equals(bookId) && !book.isBorrowed()) {
-                book.borrowBook(memberId, null); // 1. 해당 책의 상태를 대출중으로 바꾸고 대출자 ID를 씁니다.
-                member.increaseBorrowedCount();  // 2. 해당 회원의 대출 장부 권수를 1권 증가시킵니다.
-                return true; // 대출 프로세스 대성공 완수!
+                book.borrowBook(memberId, null); // 1. 해당 도서 내부의 대출 가동 스위치를 ON으로 키고, 빌려 가는 사람의 회원 ID를 책 내부 낙서장에 박아넣습니다.
+                member.increaseBorrowedCount();  // 2. 이 회원 객체의 내부 대출 장부 권수 필드값도 유기적으로 연동하여 1권 증가(++ 연산) 시켜줍니다.
+                return true; // 완벽하게 상호 장부 동기화 대출 연산이 끝났으므로 대박 성공 신호 'true'를 던져 줍니다.
             }
         }
-        return false; // 리스트를 다 돌았는데 책 번호가 없거나, 이미 다른 사람이 빌려간 책이라면 실패 처리
+        return false; // 도서관 전체를 다 뒤졌는데 책 번호가 없거나 혹은 번호는 맞는데 이미 남이 빌려 간 책이라 못 빌려줄 때 최종 실패 'false'를 냅니다.
     }
 
-    // [핵심 기능 2: 도서 반납 처리 로직]
+    // [도서 반납 처리 핵심 로직] 4번 메뉴 구동 시 작동하며, 대출의 과정을 역순으로 되돌려 회원과 책 장부를 깔끔하게 청소합니다.
     public boolean processReturn(String bookId) {
-        // 책 보관함(List)을 맨 앞부터 돌면서 사용자가 반납하겠다고 한 책 번호를 찾습니다.
+        // 도서관 장부 리스트를 처음부터 한 권씩 차례대로 검사해 나갑니다.
         for (Book book : bookList) {
-            // 사용자가 입력한 책 번호가 맞고 && 그 책이 현재 대출 중(isBorrowed)인 책이 맞다면 반납 시작!
+            // 사용자가 입력한 반납 대상 책 번호와 일치하는 도서를 찾았고 && 그 책이 마침 누군가 빌려 간 '대출중(isBorrowed)' 상태가 맞다면
             if (book.getBookId().equals(bookId) && book.isBorrowed()) {
-                // 이 책을 빌려갔던 대출자 ID(borrowerId)를 알아내서, Map 사물함에서 그 회원을 정밀 타격해 꺼내옵니다.
+                // 이 책에 낙서처럼 적혀 있던 대출자 회원 ID 정보를 읽어와서 우리 회원 사물함(Map)에서 해당 회원의 장부 인스턴스를 실시간으로 포착해 꺼내옵니다.
                 Member member = memberMap.get(book.getBorrowerId());
                 
-                book.returnBook(); // 1. 책을 다시 대출 가능한 상태로 리셋합니다.
+                book.returnBook(); // 1. 책 내부 상태를 다시 대출 가능한 깨끗한 무소유의 상태로 완전 리셋 시킵니다.
                 
                 if (member != null) {
-                    member.decreaseBorrowedCount(); // 2. 그 회원의 대출 장부 권수를 1권 차감해 줍니다.
+                    member.decreaseBorrowedCount(); // 2. 책을 정상 반납했으니 해당 회원 장부에 잡혀 있던 대출 누적 권수를 1권 차감(-- 연산) 시켜 정상화합니다.
                 }
-                return true; // 반납 프로세스 대성공 완수!
+                return true; // 완벽하게 반납 처리가 마감되었음을 알리는 승인 신호 'true'를 던집니다.
             }
         }
-        return false; // 대출된 적이 없거나 도서관 책이 아닌 엉뚱한 번호를 치면 실패 처리
+        return false; // 애초에 대출된 적이 없는 엉뚱한 책이거나 도서관 장부에 없는 허무맹랑한 번호를 치면 반납 실패 신호 'false'를 내뱉습니다.
     }
 
-    // [도서 삭제 기능]
+    // [도서 영구 삭제 기능] 5번 메뉴 작동 시 작동하며 관리자가 장부에서 도서를 폐기처분 할 때 사용합니다.
     public boolean deleteBook(String bookId) {
+        // 전통적인 인덱스 방식의 for문을 돌려 도서 리스트를 배열 0번 칸부터 끝까지 순차 추적합니다.
         for (int i = 0; i < bookList.size(); i++) {
-            // 리스트에서 해당 도서 번호를 찾았다면
+            // 현재 순번에 위치한 책 객체의 고유 번호가 지우고자 하는 타겟 번호와 딱 일치했다면
             if (bookList.get(i).getBookId().equals(bookId)) {
-                // 방어 코드: 누군가 빌려간 책인데 도서관 목록에서 지워버리면 안 되므로 대출 중이면 삭제 불가(false) 처리
+                // [도서 분실 예방 안전장치] 만약 매칭된 책이 누군가 빌려 가고 없는 '대출중' 상태라면 절대 지우면 안 되므로 즉시 'false'를 반환해 엄격히 차단합니다.
                 if (bookList.get(i).isBorrowed()) return false; 
                 
-                bookList.remove(i); // 대출 중이 아니라면 리스트에서 깨끗하게 지워버립니다(.remove)
-                return true; // 삭제 성공
+                bookList.remove(i); // 대출 상태가 아닌 서고에 꽂혀 있는 안전한 책임이 확인되었으므로 리스트 내부 해당 순번 칸을 영구 탈락(.remove) 시킵니다.
+                return true; // 도서 장부 폐기 연산 성공 판정인 'true'를 최종 리턴합니다.
             }
         }
-        return false; // 책 번호 자체가 없으면 실패
+        return false; // 도서관 전체 책장을 이 잡듯 뒤졌는데도 일치하는 책 번호가 발견되지 않는다면 최종 삭제 실패 'false'를 리턴합니다.
     }
 
-    // [파일 영구 저장] 프로그램 종료 버튼을 눌렀을 때 작동하며, 메모리의 도서 리스트와 회원 맵을 통째로 파일로 구워버립니다.
+    // [파일 영구 저장 - 직렬화] 프로그램 종료 직전 메모리의 모든 누적 장부 데이터를 컴퓨터 하드디스크에 안전하게 이식합니다.
     public void saveToFile() {
+        // ObjectOutputStream을 열어서 자바 객체를 바이너리 파일 스트림으로 전환하는 안전한 try-with-resources 예외 방어 구문입니다.
         try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(FILE_NAME))) {
-            oos.writeObject(bookList);  // 도서 전체 담긴 가변 배열 저장
-            oos.writeObject(memberMap); // 회원 정보 담긴 사물함 지도 저장
+            oos.writeObject(bookList);  // 도서 목록 객체 리스트 통째를 바이너리화하여 하드디스크 파일에 새겨넣습니다.
+            oos.writeObject(memberMap); // 회원 정보 맵 컬렉션 통째를 그 바로 아랫단 파일 영역에 나란히 새겨넣습니다.
         } catch (IOException e) {
-            System.out.println("파일 저장 실패: " + e.getMessage());
+            System.out.println("파일 저장 실패: " + e.getMessage()); // 디스크 용량 부족이나 파일 권한 오류 등으로 튕겼을 때 예외 에러 로그를 콘솔에 출력합니다.
         }
     }
 
-    // [파일 데이터 로드] 프로그램이 켜지자마자 작동하며, 파일이 존재하면 과거 데이터를 복원해 줍니다.
-    @SuppressWarnings("unchecked")
+    // [파일 데이터 로드 - 역직렬화] 프로그램이 처음 부팅될 때 과거 하드디스크에 저장해 둔 마지막 장부 상태를 그대로 부활시킵니다.
+    @SuppressWarnings("unchecked") // 역직렬화 강제 캐스팅(변환) 시 자바가 띄우는 사소한 노란색 경고 문구를 무시하고 깔끔하게 진행하도록 조치하는 어노테이션입니다.
     public void loadFromFile() {
-        File file = new File(FILE_NAME);
-        if (!file.exists()) return; // 만약 처음 실행해서 저장된 파일이 없다면 그냥 아무 일 없이 넘어갑니다.
+        File file = new File(FILE_NAME); // 지정된 파일 경로의 껍데기 파일 객체를 하나 생성해 봅니다.
+        if (!file.exists()) return; // 만약 프로그램을 난생처음 구동해서 과거 백업 파일(.dat)이 아예 존재하지 않는다면 로드 작업을 쿨하게 스킵하고 리턴합니다.
 
+        // 파일이 존재한다면 ObjectInputStream을 빌려와 하드디스크 내부의 바이너리 암호 텍스트를 자바 데이터 스트림으로 역으로 읽어 들입니다.
         try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(FILE_NAME))) {
-            bookList = (List<Book>) ois.readObject();  // 저장된 도서 리스트 복구
-            memberMap = (Map<String, Member>) ois.readObject(); // 저장된 회원 맵 복구
+            bookList = (List<Book>) ois.readObject(); // 파일 맨 위에서 읽어낸 첫 번째 묶음을 도서 리스트 타입으로 강제 변환하여 복구 장부에 대입합니다.
+            memberMap = (Map<String, Member>) ois.readObject(); // 그 아랫단에서 읽어낸 두 번째 묶음을 회원 맵 타입으로 복원해 맵 장부에 덮어씁니다.
         } catch (Exception e) {
-            System.out.println("데이터 로드 실패: " + e.getMessage());
+            System.out.println("데이터 로드 실패: " + e.getMessage()); // 파일이 도중에 깨졌거나 형태가 변형되어 읽어오다 에러가 터지면 콘솔에 오류 원인을 찍어줍니다.
         }
     }
 }
